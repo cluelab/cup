@@ -1,7 +1,9 @@
 				    
 package java_cup.runtime;
 
+import java.io.PrintWriter;
 import java.lang.reflect.Field;
+import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Stack;
@@ -279,7 +281,29 @@ public abstract class lr_parser {
   /*. . . . . . . . . . . . . . . . . . . . . . . . . . . . . .*/
 
   /** The parse stack itself. */
-  protected Stack stack = new Stack();
+  protected final Stack<Symbol> stack = new Stack<Symbol>() {
+	private static final long serialVersionUID = 4853993425395124475L;
+
+	@Override
+	public synchronized Symbol pop() {
+		Symbol o = super.pop();
+		debug_json("stack_pop", "token", o.sym);
+		return o;
+	}
+
+	@Override
+	public Symbol push(Symbol item) {
+		debug_json("stack_push", "token", item.sym);
+		return super.push(item);
+	}
+
+	@Override
+	public synchronized void removeAllElements() {
+		debug_json("stack_removeAllElements");
+		super.removeAllElements();
+	}
+
+  };
 
   /*. . . . . . . . . . . . . . . . . . . . . . . . . . . . . .*/
 
@@ -752,7 +776,59 @@ public abstract class lr_parser {
       System.err.println(mess);
     }
 
+  private boolean debug_message_first = true;
+
+  /** Write a debugging message to System.err for the debugging version 
+   *  of the parser. 
+   *
+   * @param mess the text of the debugging message.
+   */
+  public void debug_message(String mess, String action, Object ... jsonvals)
+    {
+      System.err.println(mess);
+      debug_json(action, jsonvals);
+    }
+
+  public void debug_json(String action, Object ... jsonvals)
+    {
+	  if(debug_message_first) {
+		  debug_message_first = false;
+		  debug_json.print("\t{ \"op\":\"" + action + "\"");
+	  } else {
+		  debug_json.print(",\n\t{ \"op\":\"" + action + "\"");
+	  }
+
+      for(int i = 0; i < jsonvals.length; i++) {
+    	  if(i % 2 == 0) {
+    		  debug_json.print(", \"" + jsonvals[i] + "\":");
+    	  } else {
+    		  debug_json.print(tojson(jsonvals[i]));
+    	  }
+      }
+      debug_json.print(" }");
+      debug_json.flush();
+    }
+
   /*. . . . . . . . . . . . . . . . . . . . . . . . . . . . . .*/
+
+  private static String tojson(Object val)
+    {
+	  if(val == null || val instanceof Number || val instanceof Boolean) {
+		  return String.valueOf(val);
+	  } else if(val.getClass().isArray()) {
+		  StringBuilder sb = new StringBuilder("[ ");
+		  for(Object e : (Object[]) val) {
+			  sb.append(tojson(e) + ", ");
+		  }
+		  if(sb.length() >= 2) {
+			  sb.setLength(sb.length() - 2);
+		  }
+		  sb.append(" ]");
+		  return sb.toString();
+	  } else {
+		  return "\"" + val + "\"";
+	  }
+    }
 
   /** Dump the parse stack for debugging purposes. */
   public void dump_stack()
@@ -785,7 +861,7 @@ public abstract class lr_parser {
   public void debug_reduce(int prod_num, int nt_num, int rhs_size)
     {
       debug_message("# Reduce with prod #" + prod_num + " [NT=" + nt_num + 
-	            ", " + "SZ=" + rhs_size + "]");
+	            ", " + "SZ=" + rhs_size + "]", "reduce", "prod_num", prod_num, "nt_num", nt_num, "rhs_size", rhs_size);
     }
 
   /*. . . . . . . . . . . . . . . . . . . . . . . . . . . . . .*/
@@ -797,7 +873,7 @@ public abstract class lr_parser {
   public void debug_shift(Symbol shift_tkn)
     {
       debug_message("# Shift under term #" + shift_tkn.sym + 
-		    " to state #" + shift_tkn.parse_state);
+		    " to state #" + shift_tkn.parse_state, "shift", "term", shift_tkn.sym, "to_state", shift_tkn.parse_state);
     }
 
   /*. . . . . . . . . . . . . . . . . . . . . . . . . . . . . .*/
@@ -818,6 +894,8 @@ public abstract class lr_parser {
 
   /*. . . . . . . . . . . . . . . . . . . . . . . . . . . . . .*/
 
+  private PrintWriter debug_json;
+
   /** Perform a parse with debugging output.  This does exactly the
    *  same things as parse(), except that it calls debug_shift() and
    *  debug_reduce() when shift and reduce moves are taken by the parser
@@ -826,6 +904,13 @@ public abstract class lr_parser {
   public Symbol debug_parse()
     throws java.lang.Exception
     {
+
+	  debug_json = new PrintWriter("log.json");
+	  debug_json.println("[");
+      Class<?> symbolContainer = getSymbolContainer();
+      String[] terminalNames = (String[]) symbolContainer.getDeclaredField("terminalNames").get(null);
+	  debug_json("terminalNames", "names", terminalNames);
+
       /* the current action code */
       int act;
 
@@ -851,7 +936,7 @@ public abstract class lr_parser {
       /* the current Symbol */
       cur_token = scan(); 
 
-      debug_message("# Current Symbol is #" + cur_token.sym);
+      debug_message("# Current Symbol is #" + cur_token.sym, "cur_token", "sym", cur_token.sym, "val", cur_token.value);
 
       /* push dummy Symbol with start state to get us underway */
       stack.removeAllElements();
@@ -883,7 +968,7 @@ public abstract class lr_parser {
 
 	      /* advance to the next Symbol */
 	      cur_token = scan();
-              debug_message("# Current token is " + cur_token);
+              debug_message("# Current token is " + cur_token, "cur_token", "sym", cur_token.sym, "val", cur_token.value);
 	    }
 	  /* if its less than zero, then it encodes a reduce action */
 	  else if (act < 0)
@@ -906,9 +991,10 @@ public abstract class lr_parser {
 	      
 	      /* look up the state to go to from the one popped back to */
 	      act = get_reduce(((Symbol)stack.peek()).parse_state, lhs_sym_num);
+	      int ps = ((Symbol)stack.peek()).parse_state;
 	      debug_message("# Reduce rule: top state " +
-			     ((Symbol)stack.peek()).parse_state +
-			     ", lhs sym " + lhs_sym_num + " -> state " + act); 
+			     ps +
+			     ", lhs sym " + lhs_sym_num + " -> state " + act, "reduce_rule", "top_state", ps, "lhs_sym_num", lhs_sym_num, "to_state", act);
 
 	      /* shift to that state */
 	      lhs_sym.parse_state = act;
@@ -916,7 +1002,7 @@ public abstract class lr_parser {
 	      stack.push(lhs_sym);
 	      tos++;
 
-	      debug_message("# Goto state #" + act);
+	      debug_message("# Goto state #" + act, "goto", "to_state", act);
 	    }
 	  /* finally if the entry is zero, we have an error */
 	  else if (act == 0)
@@ -937,6 +1023,8 @@ public abstract class lr_parser {
 		}
 	    }
 	}
+	  debug_json.println("\n]");
+	  debug_json.close();
       return lhs_sym;
     }
 
