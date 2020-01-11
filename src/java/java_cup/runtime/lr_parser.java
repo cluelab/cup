@@ -3,7 +3,7 @@ package java_cup.runtime;
 
 import java.io.PrintWriter;
 import java.lang.reflect.Field;
-import java.util.Arrays;
+import java.util.IdentityHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Stack;
@@ -287,13 +287,13 @@ public abstract class lr_parser {
 	@Override
 	public synchronized Symbol pop() {
 		Symbol o = super.pop();
-		debug_json("stack_pop", "token", o.sym);
+		debug_json("stack_pop", "token", o);
 		return o;
 	}
 
 	@Override
 	public Symbol push(Symbol item) {
-		debug_json("stack_push", "token", item.sym);
+		debug_json("stack_push", "token", item);
 		return super.push(item);
 	}
 
@@ -791,6 +791,10 @@ public abstract class lr_parser {
 
   public void debug_json(String action, Object ... jsonvals)
     {
+	  if(debug_json == null) {
+		  return;
+	  }
+
 	  if(debug_message_first) {
 		  debug_message_first = false;
 		  debug_json.print("\t{ \"op\":\"" + action + "\"");
@@ -811,10 +815,23 @@ public abstract class lr_parser {
 
   /*. . . . . . . . . . . . . . . . . . . . . . . . . . . . . .*/
 
-  private static String tojson(Object val)
+  private String tojson(Object val)
     {
 	  if(val == null || val instanceof Number || val instanceof Boolean) {
 		  return String.valueOf(val);
+	  } else if(val instanceof Symbol) {
+		  Symbol s = (Symbol) val;
+		  Integer id = symbols.get(s);
+		  if(id == null) {
+			  id = symbols.size();
+			  symbols.put(s, id);
+		  }
+		  if(s instanceof ComplexSymbolFactory.ComplexSymbol) {
+			  ComplexSymbolFactory.ComplexSymbol cs = (ComplexSymbol) s;
+			  return "{ \"id\":" + id + ", \"name\":\"" + cs.name + "\", \"sym\":" + cs.sym + ", \"parse_state\":" + cs.parse_state + (cs.value == null ? " }": ", \"value\":" + tojson(cs.value) + " }");
+		  } else {
+			  return "{ \"id\":" + id + ", \"sym\":" + s.sym + ", \"parse_state\":" + s.parse_state + (s.value == null ? " }": ", \"value\":" + tojson(s.value) + " }");
+		  }
 	  } else if(val.getClass().isArray()) {
 		  StringBuilder sb = new StringBuilder("[ ");
 		  for(Object e : (Object[]) val) {
@@ -829,6 +846,8 @@ public abstract class lr_parser {
 		  return "\"" + val + "\"";
 	  }
     }
+
+  private IdentityHashMap<Symbol, Integer> symbols = new IdentityHashMap<Symbol, Integer>();
 
   /** Dump the parse stack for debugging purposes. */
   public void dump_stack()
@@ -873,7 +892,7 @@ public abstract class lr_parser {
   public void debug_shift(Symbol shift_tkn)
     {
       debug_message("# Shift under term #" + shift_tkn.sym + 
-		    " to state #" + shift_tkn.parse_state, "shift", "term", shift_tkn.sym, "to_state", shift_tkn.parse_state);
+		    " to state #" + shift_tkn.parse_state, "shift", "to_state", shift_tkn.parse_state, "token", shift_tkn);
     }
 
   /*. . . . . . . . . . . . . . . . . . . . . . . . . . . . . .*/
@@ -907,9 +926,7 @@ public abstract class lr_parser {
 
 	  debug_json = new PrintWriter("log.json");
 	  debug_json.println("[");
-      Class<?> symbolContainer = getSymbolContainer();
-      String[] terminalNames = (String[]) symbolContainer.getDeclaredField("terminalNames").get(null);
-	  debug_json("terminalNames", "names", terminalNames);
+	  debug_json("parsing_info");
 
       /* the current action code */
       int act;
@@ -936,7 +953,7 @@ public abstract class lr_parser {
       /* the current Symbol */
       cur_token = scan(); 
 
-      debug_message("# Current Symbol is #" + cur_token.sym, "cur_token", "sym", cur_token.sym, "val", cur_token.value);
+      debug_message("# Current Symbol is #" + cur_token.sym, "scan", "cur_token", cur_token);
 
       /* push dummy Symbol with start state to get us underway */
       stack.removeAllElements();
@@ -968,7 +985,7 @@ public abstract class lr_parser {
 
 	      /* advance to the next Symbol */
 	      cur_token = scan();
-              debug_message("# Current token is " + cur_token, "cur_token", "sym", cur_token.sym, "val", cur_token.value);
+              debug_message("# Current token is " + cur_token, "scan", "cur_token", cur_token);
 	    }
 	  /* if its less than zero, then it encodes a reduce action */
 	  else if (act < 0)
@@ -1191,6 +1208,7 @@ public abstract class lr_parser {
    */
   protected void read_lookahead() throws java.lang.Exception
     {
+	  debug_json("read_lookahead");
       /* create the lookahead array */
       lookahead = new Symbol[error_sync_size()];
 
@@ -1199,6 +1217,7 @@ public abstract class lr_parser {
 	{
 	  lookahead[i] = cur_token;
 	  cur_token = scan();
+	  debug_json("scan", "cur_token", cur_token);
 	}
 
       /* start at the beginning */
@@ -1219,6 +1238,7 @@ public abstract class lr_parser {
     {
       /* advance the input location */
       lookahead_pos++;
+	  debug_json("advance_lookahead", "lookahead_pos", lookahead_pos);
 
       /* return true if we didn't go off the end */
       return lookahead_pos < error_sync_size();
@@ -1231,6 +1251,7 @@ public abstract class lr_parser {
    */
   protected void restart_lookahead() throws java.lang.Exception
     {
+	  debug_json("restart_lookahead");
       /* move all the existing input over */
       for (int i = 1; i < error_sync_size(); i++)
 	lookahead[i-1] = lookahead[i];
@@ -1242,6 +1263,7 @@ public abstract class lr_parser {
       // The following two lines were out of order!!
       lookahead[error_sync_size()-1] = cur_token;
       cur_token = scan();
+	  debug_json("scan", "cur_token", cur_token);
 
       /* reset our internal position marker */
       lookahead_pos = 0;
