@@ -774,6 +774,7 @@ public abstract class lr_parser {
   public void debug_message(String mess)
     {
       System.err.println(mess);
+      debug_json("message", "text", mess.startsWith("# ") ? mess.substring(2) : mess);
     }
 
   private boolean debug_message_first = true;
@@ -1074,13 +1075,13 @@ public abstract class lr_parser {
   protected boolean error_recovery(boolean debug)
     throws java.lang.Exception
     {
-      if (debug) debug_message("# Attempting error recovery");
+      if (debug) debug_message("# Attempting error recovery", "error_recovery", "act", "attempting");
 
       /* first pop the stack back into a state that can shift on error and 
 	 do that shift (if that fails, we fail) */
       if (!find_recovery_config(debug))
 	{
-	  if (debug) debug_message("# Error recovery fails");
+	  if (debug) debug_message("# Error recovery fails", "error_recovery", "result", "fails");
 	  return false;
 	}
 
@@ -1100,7 +1101,7 @@ public abstract class lr_parser {
 	  /* if we are now at EOF, we have failed */
 	  if (lookahead[0].sym == EOF_sym()) 
 	    {
-	      if (debug) debug_message("# Error recovery fails at EOF");
+	      if (debug) debug_message("# Error recovery fails at EOF", "error_recovery", "result", "fails at EOF");
 	      return false;
 	    }
 
@@ -1122,6 +1123,7 @@ public abstract class lr_parser {
       parse_lookahead(debug);
 
       /* we have success */
+      debug_json("error_recovery", "result", "success");
       return true;
     }
 
