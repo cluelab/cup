@@ -818,37 +818,32 @@ public abstract class lr_parser {
 
   private String tojson(Object val)
     {
-	  if(val == null || val instanceof Number || val instanceof Boolean) {
-		  return String.valueOf(val);
-	  } else if(val instanceof Symbol) {
-		  Symbol s = (Symbol) val;
-		  Integer id = symbols.get(s);
-		  if(id == null) {
-			  id = symbols.size();
-			  symbols.put(s, id);
-		  }
-		  if(s instanceof ComplexSymbolFactory.ComplexSymbol) {
-			  ComplexSymbolFactory.ComplexSymbol cs = (ComplexSymbol) s;
-			  return "{ \"id\":" + id + ", \"name\":\"" + cs.name + "\", \"sym\":" + cs.sym + ", \"parse_state\":" + cs.parse_state + (cs.value == null ? " }": ", \"value\":" + tojson(cs.value) + " }");
-		  } else {
-			  return "{ \"id\":" + id + ", \"sym\":" + s.sym + ", \"parse_state\":" + s.parse_state + (s.value == null ? " }": ", \"value\":" + tojson(s.value) + " }");
-		  }
-	  } else if(val.getClass().isArray()) {
-		  StringBuilder sb = new StringBuilder("[ ");
-		  for(Object e : (Object[]) val) {
-			  sb.append(tojson(e) + ", ");
-		  }
-		  if(sb.length() >= 2) {
-			  sb.setLength(sb.length() - 2);
-		  }
-		  sb.append(" ]");
-		  return sb.toString();
-	  } else {
-		  return "\"" + val + "\"";
-	  }
+		if (val == null || val instanceof Number || val instanceof Boolean) {
+			return String.valueOf(val);
+		} else if (val instanceof ComplexSymbolFactory.ComplexSymbol) {
+			ComplexSymbolFactory.ComplexSymbol s = (ComplexSymbol) val;
+			return "{ \"line\":" + (s.xleft == null ? -1 : s.xleft.getLine()) + ", \"column\":"
+					+ (s.xleft == null ? -1 : s.xleft.getColumn()) + ", \"name\":\"" + s.name + "\", \"sym\":" + s.sym
+					+ ", \"parse_state\":" + s.parse_state
+					+ (s.value == null ? " }" : ", \"value\":" + tojson(s.value) + " }");
+		} else if (val instanceof Symbol) {
+			ComplexSymbolFactory.ComplexSymbol s = (ComplexSymbol) val;
+			return "{ \"line\":0, \"column\":" + s.left + "\", \"sym\":" + s.sym + ", \"parse_state\":" + s.parse_state
+					+ (s.value == null ? " }" : ", \"value\":" + tojson(s.value) + " }");
+		} else if (val.getClass().isArray()) {
+			StringBuilder sb = new StringBuilder("[ ");
+			for (Object e : (Object[]) val) {
+				sb.append(tojson(e) + ", ");
+			}
+			if (sb.length() >= 2) {
+				sb.setLength(sb.length() - 2);
+			}
+			sb.append(" ]");
+			return sb.toString();
+		} else {
+			return "\"" + val.toString().replace("\"", "\\\"") + "\"";
+		}
     }
-
-  private IdentityHashMap<Symbol, Integer> symbols = new IdentityHashMap<Symbol, Integer>();
 
   /** Dump the parse stack for debugging purposes. */
   public void dump_stack()
