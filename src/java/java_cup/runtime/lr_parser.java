@@ -3,6 +3,7 @@ package java_cup.runtime;
 
 import java.io.PrintWriter;
 import java.lang.reflect.Field;
+import java.util.Date;
 import java.util.IdentityHashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -823,12 +824,15 @@ public abstract class lr_parser {
 		} else if (val instanceof ComplexSymbolFactory.ComplexSymbol) {
 			ComplexSymbolFactory.ComplexSymbol s = (ComplexSymbol) val;
 			return "{ \"line\":" + (s.xleft == null ? -1 : s.xleft.getLine()) + ", \"column\":"
-					+ (s.xleft == null ? -1 : s.xleft.getColumn()) + ", \"name\":\"" + s.name + "\", \"sym\":" + s.sym
+					+ (s.xleft == null ? -1 : s.xleft.getColumn()) + ", \"endline\":"
+					+ (s.xright == null ? -1 : s.xright.getLine()) + ", \"endcolumn\":"
+					+ (s.xright == null ? -1 : s.xright.getColumn()) + ", \"name\":\"" + s.name + "\", \"sym\":" + s.sym
 					+ ", \"parse_state\":" + s.parse_state
 					+ (s.value == null ? " }" : ", \"value\":" + tojson(s.value) + " }");
 		} else if (val instanceof Symbol) {
 			ComplexSymbolFactory.ComplexSymbol s = (ComplexSymbol) val;
-			return "{ \"line\":0, \"column\":" + s.left + "\", \"sym\":" + s.sym + ", \"parse_state\":" + s.parse_state
+			return "{ \"line\":1, \"column\":" + s.left + " \"endline\":1, \"endcolumn\":" + s.right + "\", \"sym\":"
+					+ s.sym + ", \"parse_state\":" + s.parse_state
 					+ (s.value == null ? " }" : ", \"value\":" + tojson(s.value) + " }");
 		} else if (val.getClass().isArray()) {
 			StringBuilder sb = new StringBuilder("[ ");
@@ -919,10 +923,16 @@ public abstract class lr_parser {
   public Symbol debug_parse()
     throws java.lang.Exception
     {
+      return debug_parse(null, null);
+    }
+
+  public Symbol debug_parse(String parser, String inputfile)
+    throws java.lang.Exception
+    {
 
 	  debug_json = new PrintWriter("log.json");
 	  debug_json.println("[");
-	  debug_json("parsing_info");
+	  debug_json("parsing_info", "parser", parser, "inputfile", inputfile, "date", (new Date()).toString());
 
       /* the current action code */
       int act;
@@ -952,6 +962,7 @@ public abstract class lr_parser {
       debug_message("# Current Symbol is #" + cur_token.sym, "scan", "cur_token", cur_token);
 
       /* push dummy Symbol with start state to get us underway */
+      debug_json("init");
       stack.removeAllElements();
       stack.push(getSymbolFactory().startSymbol("START",0, start_state()));
       tos = 0;
