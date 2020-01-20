@@ -123,6 +123,50 @@ import java_cup.runtime.ComplexSymbolFactory.ComplexSymbol;
  */
 
 public abstract class lr_parser {
+	private class DebugStack extends Stack<Symbol> {
+		private static final long serialVersionUID = -204993080049097022L;
+
+		@Override
+		public synchronized Symbol pop() {
+			Symbol o = super.pop();
+			debug_json("stack_pop", "token", o);
+			return o;
+		}
+
+		@Override
+		public Symbol push(Symbol item) {
+			Symbol s = super.push(item);
+			debug_json("stack_push", "token", item);
+			return s;
+		}
+
+		@Override
+		public synchronized void removeAllElements() {
+			super.removeAllElements();
+			debug_json("stack_removeAllElements");
+		}
+	}
+
+	private class debug_virtual_parse_stack extends virtual_parse_stack {
+		public debug_virtual_parse_stack(Stack<Symbol> shadowing_stack) throws Exception {
+			super(shadowing_stack);
+			debug_json("virtual_stack_creation", "top", vstack.isEmpty() ? null : vstack.peek(), "real_next", real_next);
+		}
+
+		@Override
+		public void pop() throws Exception {
+			Object s = vstack.isEmpty() ? null : vstack.peek();
+			super.pop();
+			debug_json("virtual_stack_pop", "pop", s, "top", vstack.isEmpty() ? null : vstack.peek(), "real_next", real_next);
+		}
+
+		@Override
+		public void push(int state_num) {
+			super.push(state_num);
+			debug_json("virtual_stack_push", "top", state_num);
+		}
+	}
+
     /*-----------------------------------------------------------*/
     /*--- Constructor(s) ----------------------------------------*/
     /*-----------------------------------------------------------*/
@@ -282,29 +326,7 @@ public abstract class lr_parser {
   /*. . . . . . . . . . . . . . . . . . . . . . . . . . . . . .*/
 
   /** The parse stack itself. */
-  protected final Stack<Symbol> stack = new Stack<Symbol>() {
-	private static final long serialVersionUID = 4853993425395124475L;
-
-	@Override
-	public synchronized Symbol pop() {
-		Symbol o = super.pop();
-		debug_json("stack_pop", "token", o);
-		return o;
-	}
-
-	@Override
-	public Symbol push(Symbol item) {
-		debug_json("stack_push", "token", item);
-		return super.push(item);
-	}
-
-	@Override
-	public synchronized void removeAllElements() {
-		debug_json("stack_removeAllElements");
-		super.removeAllElements();
-	}
-
-  };
+  protected Stack stack = new Stack();
 
   /*. . . . . . . . . . . . . . . . . . . . . . . . . . . . . .*/
 
@@ -510,7 +532,7 @@ public abstract class lr_parser {
 	  short lhs,rhs_size;
 	  int act;
 	  try {
-		  virtual_parse_stack vstack = new virtual_parse_stack(stack);
+		  virtual_parse_stack vstack = debug_json == null ? new virtual_parse_stack(stack) : new debug_virtual_parse_stack(stack);
 		  /* parse until we fail or get past the lookahead input */
 		  for (;;)
 		  {
@@ -664,6 +686,10 @@ public abstract class lr_parser {
    */
   public Symbol parse() throws java.lang.Exception
     {
+	  if(stack instanceof DebugStack) {
+		  stack = new Stack<Symbol>();
+	  }
+
       /* the current action code */
       int act;
 
@@ -778,8 +804,6 @@ public abstract class lr_parser {
       debug_json("message", "text", mess.startsWith("# ") ? mess.substring(2) : mess);
     }
 
-  private boolean debug_message_first = true;
-
   /** Write a debugging message to System.err for the debugging version 
    *  of the parser. 
    *
@@ -797,12 +821,7 @@ public abstract class lr_parser {
 		  return;
 	  }
 
-	  if(debug_message_first) {
-		  debug_message_first = false;
-		  debug_json.print("\t{ \"op\":\"" + action + "\"");
-	  } else {
-		  debug_json.print(",\n\t{ \"op\":\"" + action + "\"");
-	  }
+      debug_json.print(",\n\t{ \"op\":\"" + action + "\"");
 
       for(int i = 0; i < jsonvals.length; i++) {
     	  if(i % 2 == 0) {
@@ -923,16 +942,24 @@ public abstract class lr_parser {
   public Symbol debug_parse()
     throws java.lang.Exception
     {
-      return debug_parse(null, null);
+      return debug_parse(null, null, null);
     }
 
-  public Symbol debug_parse(String parser, String inputfile)
+  public Symbol debug_parse(String parser, String inputfile, String logfile)
     throws java.lang.Exception
     {
 
-	  debug_json = new PrintWriter("log.json");
-	  debug_json.println("[");
-	  debug_json("parsing_info", "parser", parser, "inputfile", inputfile, "date", (new Date()).toString());
+	  if(!(stack instanceof DebugStack)) {
+		  stack = new DebugStack();
+	  }
+
+	  if(logfile == null) {
+		  debug_json = null;
+	  } else {
+		  debug_json = new PrintWriter(logfile);
+		  debug_json.print("[\n\t{ \"op\":\"parsing_info\", \"parser\":\"" + parser + "\", \"inputfile\":\"" + inputfile + "\", \"date\":\"" + new Date() + "\" }");
+		  debug_json.flush();
+	  }
 
       /* the current action code */
       int act;
@@ -967,6 +994,7 @@ public abstract class lr_parser {
       stack.push(getSymbolFactory().startSymbol("START",0, start_state()));
       tos = 0;
 
+      boolean success = true;
       /* continue until we are told to stop */
       for (_done_parsing = false; !_done_parsing; )
 	{
@@ -1031,6 +1059,7 @@ public abstract class lr_parser {
 	  /* finally if the entry is zero, we have an error */
 	  else if (act == 0)
 	    {
+		  success = false;
 	      /* call user syntax error reporting routine */
 	      syntax_error(cur_token);
 
@@ -1047,8 +1076,12 @@ public abstract class lr_parser {
 		}
 	    }
 	}
-	  debug_json.println("\n]");
-	  debug_json.close();
+	  if(logfile != null) {
+	      debug_json("parse_end", "success", success);
+		  debug_json.println("\n]");
+		  debug_json.close();
+		  debug_json = null;
+	  }
       return lhs_sym;
     }
 
@@ -1129,7 +1162,7 @@ public abstract class lr_parser {
       parse_lookahead(debug);
 
       /* we have success */
-      debug_json("error_recovery", "result", "success");
+      if (debug) debug_json("error_recovery", "result", "success");
       return true;
     }
 
@@ -1216,7 +1249,7 @@ public abstract class lr_parser {
    */
   protected void read_lookahead() throws java.lang.Exception
     {
-	  debug_json("read_lookahead");
+	  debug_json("read_lookahead", "act", "start");
       /* create the lookahead array */
       lookahead = new Symbol[error_sync_size()];
 
@@ -1224,12 +1257,14 @@ public abstract class lr_parser {
       for (int i = 0; i < error_sync_size(); i++)
 	{
 	  lookahead[i] = cur_token;
+	  debug_json("read_lookahead", "act", "add", "token", cur_token);
 	  cur_token = scan();
 	  debug_json("scan", "cur_token", cur_token);
 	}
 
       /* start at the beginning */
       lookahead_pos = 0;
+	  debug_json("read_lookahead", "act", "end");
     }
 
   /*. . . . . . . . . . . . . . . . . . . . . . . . . . . . . .*/
@@ -1246,10 +1281,11 @@ public abstract class lr_parser {
     {
       /* advance the input location */
       lookahead_pos++;
-	  debug_json("advance_lookahead", "lookahead_pos", lookahead_pos);
+      boolean res = lookahead_pos < error_sync_size();
+	  debug_json("advance_lookahead", "lookahead_pos", lookahead_pos, "result", res);
 
       /* return true if we didn't go off the end */
-      return lookahead_pos < error_sync_size();
+      return res;
     }
 
   /*. . . . . . . . . . . . . . . . . . . . . . . . . . . . . .*/
@@ -1259,7 +1295,7 @@ public abstract class lr_parser {
    */
   protected void restart_lookahead() throws java.lang.Exception
     {
-	  debug_json("restart_lookahead");
+	  debug_json("restart_lookahead", "act", "start");
       /* move all the existing input over */
       for (int i = 1; i < error_sync_size(); i++)
 	lookahead[i-1] = lookahead[i];
@@ -1275,6 +1311,7 @@ public abstract class lr_parser {
 
       /* reset our internal position marker */
       lookahead_pos = 0;
+      debug_json("restart_lookahead", "act", "end");
     }
 
   /*. . . . . . . . . . . . . . . . . . . . . . . . . . . . . .*/
@@ -1291,11 +1328,12 @@ public abstract class lr_parser {
   protected boolean try_parse_ahead(boolean debug)
     throws java.lang.Exception
     {
+	  if (debug) debug_json("try_parse_ahead", "act", "start");
       int act;
       short lhs, rhs_size;
 
       /* create a virtual stack from the real parse stack */
-      virtual_parse_stack vstack = new virtual_parse_stack(stack);
+      virtual_parse_stack vstack = debug ? new debug_virtual_parse_stack(stack) : new virtual_parse_stack(stack);
 
       /* parse until we fail or get past the lookahead input */
       for (;;)
@@ -1304,7 +1342,10 @@ public abstract class lr_parser {
 	  act = get_action(vstack.top(), cur_err_token().sym);
 
 	  /* if its an error, we fail */
-	  if (act == 0) return false;
+	  if (act == 0) {
+		  if (debug) debug_json("try_parse_ahead", "act", "end", "result", false);
+		  return false;
+	  }
 
 	  /* > 0 encodes a shift */
 	  if (act > 0)
@@ -1313,10 +1354,13 @@ public abstract class lr_parser {
 	      vstack.push(act-1);
 
 	      if (debug) debug_message("# Parse-ahead shifts Symbol #" + 
-		       cur_err_token().sym + " into state #" + (act-1));
+		       cur_err_token().sym + " into state #" + (act-1), "shift", "to_state", (act-1), "token", cur_err_token());
 
 	      /* advance simulated input, if we run off the end, we are done */
-	      if (!advance_lookahead()) return true;
+	      if (!advance_lookahead()) {
+	    	  if (debug) debug_json("try_parse_ahead", "act", "end", "result", true);
+	    	  return true;
+	      }
 	    }
 	  /* < 0 encodes a reduce */
 	  else
@@ -1324,7 +1368,7 @@ public abstract class lr_parser {
 	      /* if this is a reduce with the start production we are done */
 	      if ((-act)-1 == start_production()) 
 		{
-		  if (debug) debug_message("# Parse-ahead accepts");
+		  if (debug) debug_message("# Parse-ahead accepts", "try_parse_ahead", "act", "end", "result", true);
 		  return true;
 		}
 
@@ -1338,12 +1382,12 @@ public abstract class lr_parser {
 
 	      if (debug) 
 		debug_message("# Parse-ahead reduces: handle size = " + 
-	          rhs_size + " lhs = #" + lhs + " from state #" + vstack.top());
+	          rhs_size + " lhs = #" + lhs + " from state #" + vstack.top(), "reduce", "prod_num", (-act)-1, "nt_num", lhs, "rhs_size", rhs_size, "from_state", vstack.top());
 
 	      /* look up goto and push it onto the stack */
 	      vstack.push(get_reduce(vstack.top(), lhs));
 	      if (debug) 
-		debug_message("# Goto state #" + vstack.top());
+		debug_message("# Goto state #" + vstack.top(), "goto", "to_state", vstack.top());
 	    }
 	}
     }
@@ -1362,6 +1406,7 @@ public abstract class lr_parser {
   protected void parse_lookahead(boolean debug)
     throws java.lang.Exception
     {
+	  if (debug) debug_json("parse_lookahead", "act", "start");
       /* the current action code */
       int act;
 
@@ -1413,6 +1458,7 @@ public abstract class lr_parser {
 		  /*cur_token = scan();*/
 
 		  /* go back to normal parser */
+		  if (debug) debug_json("parse_lookahead", "act", "end");
 		  return;
 		}
 	      
@@ -1447,7 +1493,7 @@ public abstract class lr_parser {
 	      stack.push(lhs_sym);
 	      tos++;
 	       
-	      if (debug) debug_message("# Goto state #" + act);
+	      if (debug) debug_message("# Goto state #" + act, "goto", "to_state", act);
 
 	    }
 	  /* finally if the entry is zero, we have an error 
@@ -1455,6 +1501,7 @@ public abstract class lr_parser {
 	  else if (act == 0)
 	    {
 	      report_fatal_error("Syntax error", lhs_sym);
+	      if (debug) debug_json("parse_lookahead", "act", "end");
 	      return;
 	    }
 	}
