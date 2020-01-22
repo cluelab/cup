@@ -197,7 +197,7 @@ public abstract class XMLElement {
 		public Location right() {	return r;	}
 
 		public String toString() {
-			return (value == null) ? "<terminal id=\"" + tagname + "\"/>"
+			return (value == null) ? "<terminal id=\"" + tagname + "\" left=\"" + l + "\" right=\"" + r + "\"/>"
 					: "<terminal id=\"" + tagname + "\" left=\"" + l
 							+ "\" right=\"" + r + "\">" + value
 							+ "</terminal>";

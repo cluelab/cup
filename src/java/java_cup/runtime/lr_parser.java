@@ -840,19 +840,26 @@ public abstract class lr_parser {
     {
 		if (val == null || val instanceof Number || val instanceof Boolean) {
 			return String.valueOf(val);
-		} else if (val instanceof ComplexSymbolFactory.ComplexSymbol) {
-			ComplexSymbolFactory.ComplexSymbol s = (ComplexSymbol) val;
-			return "{ \"line\":" + (s.xleft == null ? -1 : s.xleft.getLine()) + ", \"column\":"
-					+ (s.xleft == null ? -1 : s.xleft.getColumn()) + ", \"endline\":"
-					+ (s.xright == null ? -1 : s.xright.getLine()) + ", \"endcolumn\":"
-					+ (s.xright == null ? -1 : s.xright.getColumn()) + ", \"name\":\"" + s.name + "\", \"sym\":" + s.sym
-					+ ", \"parse_state\":" + s.parse_state
-					+ (s.value == null ? " }" : ", \"value\":" + tojson(s.value) + " }");
 		} else if (val instanceof Symbol) {
-			ComplexSymbolFactory.ComplexSymbol s = (ComplexSymbol) val;
-			return "{ \"line\":1, \"column\":" + s.left + " \"endline\":1, \"endcolumn\":" + s.right + "\", \"sym\":"
-					+ s.sym + ", \"parse_state\":" + s.parse_state
-					+ (s.value == null ? " }" : ", \"value\":" + tojson(s.value) + " }");
+			Symbol s = (Symbol) val;
+			Integer id = debug_symbols.get(s);
+			if (id == null) {
+				id = debug_symbols.size();
+				debug_symbols.put(s, id);
+			}
+			if (val instanceof ComplexSymbolFactory.ComplexSymbol) {
+				ComplexSymbolFactory.ComplexSymbol cs = (ComplexSymbol) val;
+				return "{ \"id\":" + id + ", \"name\":\"" + cs.name + "\", \"sym\":" + cs.sym + ", \"parse_state\":"
+						+ cs.parse_state + ", \"line\":" + (cs.xleft == null ? -1 : cs.xleft.getLine())
+						+ ", \"column\":" + (cs.xleft == null ? -1 : cs.xleft.getColumn()) + ", \"endline\":"
+						+ (cs.xright == null ? -1 : cs.xright.getLine()) + ", \"endcolumn\":"
+						+ (cs.xright == null ? -1 : cs.xright.getColumn())
+						+ (cs.value == null ? " }" : ", \"value\":" + tojson(cs.value) + " }");
+			} else {
+				return "{ \"id\":" + id + ", \"sym\":" + s.sym + ", \"parse_state\":" + s.parse_state
+						+ ", \"line\":1, \"column\":" + s.left + ", \"endline\":1, \"endcolumn\":" + s.right
+						+ (s.value == null ? " }" : ", \"value\":" + tojson(s.value) + " }");
+			}
 		} else if (val.getClass().isArray()) {
 			StringBuilder sb = new StringBuilder("[ ");
 			for (Object e : (Object[]) val) {
@@ -945,9 +952,12 @@ public abstract class lr_parser {
       return debug_parse(null, null, null);
     }
 
+  private final IdentityHashMap<Symbol, Integer> debug_symbols = new IdentityHashMap<Symbol, Integer>();
+
   public Symbol debug_parse(String parser, String inputfile, String logfile)
     throws java.lang.Exception
     {
+	  debug_symbols.clear();
 
 	  if(!(stack instanceof DebugStack)) {
 		  stack = new DebugStack();
@@ -986,7 +996,7 @@ public abstract class lr_parser {
       /* the current Symbol */
       cur_token = scan(); 
 
-      debug_message("# Current Symbol is #" + cur_token.sym, "scan", "cur_token", cur_token);
+      debug_message("# Current Symbol is #" + cur_token.sym, "read", "next_token", cur_token);
 
       /* push dummy Symbol with start state to get us underway */
       debug_json("init");
@@ -1020,7 +1030,7 @@ public abstract class lr_parser {
 
 	      /* advance to the next Symbol */
 	      cur_token = scan();
-              debug_message("# Current token is " + cur_token, "scan", "cur_token", cur_token);
+              debug_message("# Current token is " + cur_token, "read", "next_token", cur_token);
 	    }
 	  /* if its less than zero, then it encodes a reduce action */
 	  else if (act < 0)
@@ -1046,7 +1056,7 @@ public abstract class lr_parser {
 	      int ps = ((Symbol)stack.peek()).parse_state;
 	      debug_message("# Reduce rule: top state " +
 			     ps +
-			     ", lhs sym " + lhs_sym_num + " -> state " + act, "reduce_rule", "top_state", ps, "lhs_sym_num", lhs_sym_num, "to_state", act);
+			     ", lhs sym " + lhs_sym_num + " -> state " + act);
 
 	      /* shift to that state */
 	      lhs_sym.parse_state = act;
@@ -1259,7 +1269,7 @@ public abstract class lr_parser {
 	  lookahead[i] = cur_token;
 	  debug_json("read_lookahead", "act", "add", "token", cur_token);
 	  cur_token = scan();
-	  debug_json("scan", "cur_token", cur_token);
+	  debug_json("read", "next_token", cur_token);
 	}
 
       /* start at the beginning */
@@ -1307,7 +1317,7 @@ public abstract class lr_parser {
       // The following two lines were out of order!!
       lookahead[error_sync_size()-1] = cur_token;
       cur_token = scan();
-	  debug_json("scan", "cur_token", cur_token);
+	  debug_json("read", "next_token", cur_token);
 
       /* reset our internal position marker */
       lookahead_pos = 0;
