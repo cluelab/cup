@@ -129,14 +129,14 @@ public abstract class lr_parser {
 		@Override
 		public synchronized Symbol pop() {
 			Symbol o = super.pop();
-			debug_json("stack_pop", "token", o);
+			debug_json("stack_pop", "popped", o);
 			return o;
 		}
 
 		@Override
 		public Symbol push(Symbol item) {
 			Symbol s = super.push(item);
-			debug_json("stack_push", "token", item);
+			debug_json("stack_push", "item", item);
 			return s;
 		}
 
@@ -918,7 +918,7 @@ public abstract class lr_parser {
   public void debug_shift(Symbol shift_tkn)
     {
       debug_message("# Shift under term #" + shift_tkn.sym + 
-		    " to state #" + shift_tkn.parse_state, "shift", "to_state", shift_tkn.parse_state, "token", shift_tkn);
+		    " to state #" + shift_tkn.parse_state, "shift", "to_state", shift_tkn.parse_state, "item", shift_tkn);
     }
 
   /*. . . . . . . . . . . . . . . . . . . . . . . . . . . . . .*/
@@ -996,10 +996,10 @@ public abstract class lr_parser {
       /* the current Symbol */
       cur_token = scan(); 
 
-      debug_message("# Current Symbol is #" + cur_token.sym, "read", "next_token", cur_token);
+      debug_message("# Current Symbol is #" + cur_token.sym, "read_next_token", "returns", cur_token);
 
       /* push dummy Symbol with start state to get us underway */
-      debug_json("init");
+      debug_json("stack_initialization");
       stack.removeAllElements();
       stack.push(getSymbolFactory().startSymbol("START",0, start_state()));
       tos = 0;
@@ -1030,7 +1030,7 @@ public abstract class lr_parser {
 
 	      /* advance to the next Symbol */
 	      cur_token = scan();
-              debug_message("# Current token is " + cur_token, "read", "next_token", cur_token);
+              debug_message("# Current token is " + cur_token, "read_next_token", "returns", cur_token);
 	    }
 	  /* if its less than zero, then it encodes a reduce action */
 	  else if (act < 0)
@@ -1269,7 +1269,7 @@ public abstract class lr_parser {
 	  lookahead[i] = cur_token;
 	  debug_json("read_lookahead", "act", "add", "token", cur_token);
 	  cur_token = scan();
-	  debug_json("read", "next_token", cur_token);
+	  debug_json("read_next_token", "returns", cur_token);
 	}
 
       /* start at the beginning */
@@ -1317,7 +1317,7 @@ public abstract class lr_parser {
       // The following two lines were out of order!!
       lookahead[error_sync_size()-1] = cur_token;
       cur_token = scan();
-	  debug_json("read", "next_token", cur_token);
+	  debug_json("read_next_token", "returns", cur_token);
 
       /* reset our internal position marker */
       lookahead_pos = 0;
