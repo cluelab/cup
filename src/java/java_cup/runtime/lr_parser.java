@@ -136,7 +136,7 @@ public abstract class lr_parser {
 		@Override
 		public Symbol push(Symbol item) {
 			Symbol s = super.push(item);
-			debug_json("stack_push", "item", item);
+			debug_json("stack_push", "element", item);
 			return s;
 		}
 
@@ -918,7 +918,7 @@ public abstract class lr_parser {
   public void debug_shift(Symbol shift_tkn)
     {
       debug_message("# Shift under term #" + shift_tkn.sym + 
-		    " to state #" + shift_tkn.parse_state, "shift", "to_state", shift_tkn.parse_state, "item", shift_tkn);
+		    " to state #" + shift_tkn.parse_state, "shift", "to_state", shift_tkn.parse_state, "element", shift_tkn);
     }
 
   /*. . . . . . . . . . . . . . . . . . . . . . . . . . . . . .*/
