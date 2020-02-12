@@ -492,7 +492,9 @@ public abstract class lr_parser {
 	  for (Integer expected : ids){
 		  list.add(symbl_name_from_id(expected));
 	  }
-	  System.out.println("instead expected token classes are "+list);
+	  String message = "instead expected token classes are " + list;
+	  debug_json("message", "text", message);
+	  System.out.println(message);
   }
   /**
    * Translates numerical symbol ids to the (non)terminal names from the spec
@@ -773,12 +775,14 @@ public abstract class lr_parser {
 	  else if (act == 0)
 	    {
 	      /* call user syntax error reporting routine */
+		  debug_json("syntax_error", "token", cur_token);
 	      syntax_error(cur_token);
 
 	      /* try to error recover */
 	      if (!error_recovery(false))
 		{
 		  /* if that fails give up with a fatal syntax error */
+	      debug_json("unrecovered_syntax_error", "token", cur_token);
 		  unrecovered_syntax_error(cur_token);
 
 		  /* just in case that wasn't fatal enough, end parse */
@@ -1071,12 +1075,14 @@ public abstract class lr_parser {
 	    {
 		  success = false;
 	      /* call user syntax error reporting routine */
+		  debug_json("syntax_error", "token", cur_token);
 	      syntax_error(cur_token);
 
 	      /* try to error recover */
 	      if (!error_recovery(true))
 		{
 		  /* if that fails give up with a fatal syntax error */
+	      debug_json("unrecovered_syntax_error", "token", cur_token);
 		  unrecovered_syntax_error(cur_token);
 
 		  /* just in case that wasn't fatal enough, end parse */
@@ -1510,6 +1516,7 @@ public abstract class lr_parser {
 	     (shouldn't happen here, but...)*/
 	  else if (act == 0)
 	    {
+		  debug_json("syntax_error", "token", lhs_sym);
 	      report_fatal_error("Syntax error", lhs_sym);
 	      if (debug) debug_json("parse_lookahead", "act", "end");
 	      return;
